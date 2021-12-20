@@ -9,12 +9,20 @@ interface Env {
 export default {
   async fetch(request: Request, env: Env) {
     try {
-      const id = env.KOI_POLLOI.idFromName('A')
+      const url = new URL(request.url)
+      const params = new URLSearchParams(url.search)
+      const gameId = params.get('gameId')
+      if (!gameId) {
+        return new Response('Missing gameId', { status: 400 })
+      }
+
+      const id = env.KOI_POLLOI.idFromName(gameId)
       const obj = env.KOI_POLLOI.get(id)
 
       return await obj.fetch(request)
-    } catch (e) {
-      return new Response(`${e}`)
+    } catch (error) {
+      console.error(error)
+      return new Response('Unknown error', { status: 400 })
     }
   }
 }

@@ -7,7 +7,7 @@ export class KoiPolloi {
     // this.webSockets = []
   }
 
-  async handleSession(webSocket: WebSocket) {
+  async handleSession(webSocket: WebSocket, ip: string | null) {
     webSocket.accept()
     // this.webSockets = [...this.webSockets, webSocket]
 
@@ -35,11 +35,10 @@ export class KoiPolloi {
           return new Response('Expected Upgrade: websocket', { status: 426 })
         }
 
-        const ip = request.headers.get('CF-Connecting-IP')
-
         const { 0: client, 1: server } = new WebSocketPair()
 
-        await this.handleSession(server)
+        const ip = request.headers.get('CF-Connecting-IP')
+        await this.handleSession(server, ip)
 
         return new Response(null, { status: 101, webSocket: client })
       }
