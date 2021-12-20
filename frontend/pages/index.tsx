@@ -1,9 +1,15 @@
 import type { NextPage } from 'next'
 import Head from 'next/head'
 import Image from 'next/image'
+import { useEffect } from 'react'
 import styles from '../styles/Home.module.css'
+import { WebsocketClient } from '../websocket-client'
 
 const Home: NextPage = () => {
+  useEffect(() => {
+    new WebsocketClient()
+  }, [])
+
   return (
     <div className={styles.container}>
       <Head>

@@ -5,17 +5,18 @@ account_id = ""
 workers_dev = true
 route = ""
 zone_id = ""
+compatibility_date = "2021-12-20"
 
 [build]
-command = "npm install && npm test && npm run build"
+command = "yarn && yarn test && yarn build"
 [build.upload]
 # The "modules" upload format is required for all projects that export a Durable Objects class
 format = "modules"
 main = "./index.mjs"
 
 [durable_objects]
-bindings = [{name = "COUNTER", class_name = "CounterTs"}]
+bindings = [{name = "KOI_POLLOI", class_name = "KoiPolloi"}]
 
 [[migrations]]
 tag = "v1" # Should be unique for each entry
-new_classes = ["CounterTs"]
+new_classes = ["KoiPolloi"]

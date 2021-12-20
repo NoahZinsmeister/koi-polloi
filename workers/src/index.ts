@@ -1,8 +1,10 @@
-import isOdd from 'is-odd'
-
 // In order for the workers runtime to find the class that implements
 // our Durable Object namespace, we must export it from the root module.
-export { CounterTs } from './counter'
+export { KoiPolloi } from './koi-polloi'
+
+interface Env {
+  KOI_POLLOI: DurableObjectNamespace
+}
 
 export default {
   async fetch(request: Request, env: Env) {
@@ -15,15 +17,11 @@ export default {
 }
 
 async function handleRequest(request: Request, env: Env) {
-  let id = env.COUNTER.idFromName('A')
-  let obj = env.COUNTER.get(id)
+  let id = env.KOI_POLLOI.idFromName('A')
+  let obj = env.KOI_POLLOI.get(id)
   let resp = await obj.fetch(request.url)
   let count = parseInt(await resp.text())
-  let wasOdd = isOdd(count) ? 'is odd' : 'is even'
+  let wasOdd = count % 2 ? 'is odd' : 'is even'
 
   return new Response(`${count} ${wasOdd}`)
-}
-
-interface Env {
-  COUNTER: DurableObjectNamespace
 }

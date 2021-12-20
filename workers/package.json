@@ -6,22 +6,21 @@
   },
   "module": "./dist/index.mjs",
   "scripts": {
+    "dev": "miniflare --watch --debug",
     "build": "rollup -c",
     "test": "jest",
     "format": "prettier --check '**/*.ts'"
   },
-  "dependencies": {
-    "is-even": "^1.0.0"
-  },
   "devDependencies": {
     "@cloudflare/workers-types": "^3.0",
+    "@cloudflare/wrangler": "^1.19.6",
     "@rollup/plugin-commonjs": "^17.0.0",
     "@rollup/plugin-node-resolve": "^11.1.0",
     "@rollup/plugin-typescript": "^8.2.1",
-    "@types/is-odd": "^3.0.0",
     "@types/jest": "^26.0.23",
     "isomorphic-fetch": "^3.0.0",
     "jest": "^26.6.3",
+    "miniflare": "^1.4.1",
     "prettier": "^1.19.1",
     "rollup": "^2.36.1",
     "rollup-plugin-copy": "^3.3.0",
