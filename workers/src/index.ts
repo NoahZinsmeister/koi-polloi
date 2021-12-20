@@ -9,19 +9,12 @@ interface Env {
 export default {
   async fetch(request: Request, env: Env) {
     try {
-      return await handleRequest(request, env)
+      const id = env.KOI_POLLOI.idFromName('A')
+      const obj = env.KOI_POLLOI.get(id)
+
+      return await obj.fetch(request)
     } catch (e) {
       return new Response(`${e}`)
     }
   }
-}
-
-async function handleRequest(request: Request, env: Env) {
-  let id = env.KOI_POLLOI.idFromName('A')
-  let obj = env.KOI_POLLOI.get(id)
-  let resp = await obj.fetch(request.url)
-  let count = parseInt(await resp.text())
-  let wasOdd = count % 2 ? 'is odd' : 'is even'
-
-  return new Response(`${count} ${wasOdd}`)
 }

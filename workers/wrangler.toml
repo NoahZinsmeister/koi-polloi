@@ -1,4 +1,4 @@
-name = "worker"
+name = "koi-polloi"
 # type = "javascript" is required to use the `[build]` section
 type = "javascript"
 account_id = ""
@@ -8,7 +8,7 @@ zone_id = ""
 compatibility_date = "2021-12-20"
 
 [build]
-command = "yarn && yarn test && yarn build"
+command = "yarn build"
 [build.upload]
 # The "modules" upload format is required for all projects that export a Durable Objects class
 format = "modules"

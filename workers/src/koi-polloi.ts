@@ -1,28 +1,25 @@
 export class KoiPolloi {
-  webSockets: WebSocket[]
+  // webSockets: WebSocket[]
   state: DurableObjectState
 
   constructor(state: DurableObjectState) {
     this.state = state
-    this.webSockets = []
+    // this.webSockets = []
   }
 
   async handleSession(webSocket: WebSocket) {
     webSocket.accept()
-    this.webSockets.push(webSocket)
-    // TODO: broadcast entering
-    webSocket.send(JSON.stringify({ message: 'ping' }))
+    // this.webSockets = [...this.webSockets, webSocket]
 
     webSocket.addEventListener('message', async (event: MessageEvent) => {
-      console.log(event.data)
+      webSocket.send(event.data)
     })
 
     const onCloseOrError = (event: CloseEvent | Event) => {
       console.log(event)
-      this.webSockets = this.webSockets.filter(
-        otherWebSocket => webSocket !== otherWebSocket
-      )
-      // TODO: broadcast leaving
+      // this.webSockets = this.webSockets.filter(
+      //   otherWebSocket => otherWebSocket !== webSocket
+      // )
     }
 
     webSocket.addEventListener('close', onCloseOrError)
@@ -30,7 +27,6 @@ export class KoiPolloi {
   }
 
   async fetch(request: Request) {
-    // Apply requested action.
     const url = new URL(request.url)
 
     switch (url.pathname) {
