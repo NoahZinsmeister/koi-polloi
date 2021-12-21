@@ -14,7 +14,7 @@ export class WebsocketClient {
 
   constructor(gameId: string, userId: string) {
     this.webSocket = new WebSocket(
-      `ws://${process.env.NEXT_PUBLIC_URL}/ws?gameId=${gameId}&userId=${userId}`
+      `${process.env.NEXT_PUBLIC_URL}/ws?gameId=${gameId}&userId=${userId}`
     )
 
     this.open = new Promise((resolve) => {
