@@ -65,6 +65,11 @@
     "@babel/helper-validator-identifier" "^7.14.9"
     to-fast-properties "^2.0.0"
 
+"@cloudflare/workers-types@^3.3.0":
+  version "3.3.0"
+  resolved "https://registry.yarnpkg.com/@cloudflare/workers-types/-/workers-types-3.3.0.tgz#a05cf8e27bf007a93c6437bf22daa616b1b5fc42"
+  integrity sha512-3v3bm/hOuzNtHgDqPowrRE63H0GEn40LfhLMVpzS5yeg5tlE5nEQ0qobmGOJBCvJJ1LhgRRHZTJszXHs1DXQWg==
+
 "@eslint/eslintrc@^1.0.5":
   version "1.0.5"
   resolved "https://registry.yarnpkg.com/@eslint/eslintrc/-/eslintrc-1.0.5.tgz#33f1b838dbf1f923bfa517e008362b78ddbbf318"

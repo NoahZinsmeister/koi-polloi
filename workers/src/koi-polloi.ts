@@ -134,6 +134,7 @@ export class KoiPolloi {
   }
 
   async handleSession(webSocket: WebSocket, ip: string, userId: string) {
+    // @ts-ignore
     webSocket.accept()
 
     const messageHandler = async (event: MessageEvent) => {
