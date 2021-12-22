@@ -1,18 +1,17 @@
 import type { NextPage } from 'next'
 import Link from 'next/link'
-import styles from '../styles/Home.module.css'
+import { v4 as uuidv4 } from 'uuid'
+import { Container } from '../components/Container'
 
 const Home: NextPage = () => {
   return (
-    <div className={styles.container}>
-      <main className={styles.main}>
-        <h1 className={styles.title}>Koi Polloi</h1>
+    <Container>
+      <h1>Koi Polloi</h1>
 
-        <Link href="/123">
-          <a>Create Game</a>
-        </Link>
-      </main>
-    </div>
+      <Link href={`/${uuidv4()}`}>
+        <a>Create New Game</a>
+      </Link>
+    </Container>
   )
 }
 

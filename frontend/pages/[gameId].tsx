@@ -1,23 +1,23 @@
 import type { NextPage } from 'next'
 import { useRouter } from 'next/router'
-import { useEffect, useRef, useState } from 'react'
-import { Player } from '../components/Player'
+import { useCallback, useEffect, useRef } from 'react'
+import { Container } from '../components/Container'
+import { Other, You } from '../components/Players'
+import { useUserId } from '../local-storage'
 import { useStore } from '../store'
-import styles from '../styles/Game.module.css'
 import { WebsocketClient } from '../websocket-client'
 
 const Game: NextPage = () => {
   const {
-    query: { gameId, userId },
+    query: { gameId },
   } = useRouter()
+
+  const userId = useUserId()
 
   const websocket = useRef<WebsocketClient | null>(null)
   useEffect(() => {
     if (typeof gameId === 'string') {
-      websocket.current = new WebsocketClient(
-        gameId,
-        typeof userId === 'string' ? userId : ''
-      )
+      websocket.current = new WebsocketClient(gameId, userId)
     }
 
     return () => {
@@ -28,29 +28,32 @@ const Game: NextPage = () => {
 
   const { you, others } = useStore()
 
-  const [name, setName] = useState('')
+  const onNameUpdate = useCallback((name: string) => {
+    websocket.current?.updateName(name)
+  }, [])
 
   return (
-    <div className={styles.container}>
-      <main className={styles.main}>
-        <h1 className={styles.title}>Game Id: {gameId}</h1>
-        <input
-          value={name}
-          onChange={(e) => {
-            setName(e.target.value)
-            websocket.current?.updateName(e.target.value)
-          }}
-        />
-        <h1>You</h1>
-        <Player player={you} />
-        <h1>Others</h1>
-        {Object.values(others)
-          .sort((a, b) => (a.joinOrder < b.joinOrder ? -1 : 1))
-          .map((other) => (
-            <Player key={other.joinOrder} player={other} />
-          ))}
-      </main>
-    </div>
+    <Container>
+      <h1>Game Id: {gameId}</h1>
+
+      <You
+        player={you}
+        onNameUpdate={onNameUpdate}
+        style={{ marginBottom: others.length ? 0 : '1rem' }}
+      />
+
+      {Object.values(others)
+        .sort((a, b) => (a.joinOrder < b.joinOrder ? -1 : 1))
+        .map((other, i, others) => (
+          <Other
+            key={other.joinOrder}
+            player={other}
+            style={{
+              marginBottom: i === others.length ? 0 : '1rem',
+            }}
+          />
+        ))}
+    </Container>
   )
 }
 

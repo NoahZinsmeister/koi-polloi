@@ -47,35 +47,27 @@ export class KoiPolloi {
     })
   }
 
-  getPlayerWebSocket(ip: string, userId: string) {
-    return this.webSockets[`${ip}-${userId}`]
+  getPlayerWebSocket(userId: string) {
+    return this.webSockets[userId]
   }
 
-  setPlayerWebSocket(ip: string, userId: string, webSocket: WebSocket) {
-    this.webSockets[`${ip}-${userId}`] = webSocket
+  setPlayerWebSocket(userId: string, webSocket: WebSocket) {
+    this.webSockets[userId] = webSocket
   }
 
-  deletePlayerWebSocket(ip: string, userId: string) {
-    delete this.webSockets[`${ip}-${userId}`]
+  deletePlayerWebSocket(userId: string) {
+    delete this.webSockets[userId]
   }
 
-  getPlayerStorage(ip: string, userId: string) {
-    return this.state.storage.get<PlayerStorage>(
-      `${PLAYER_PREFIX}-${ip}-${userId}`
-    )
+  getPlayerStorage(userId: string) {
+    return this.state.storage.get<PlayerStorage>(`${PLAYER_PREFIX}-${userId}`)
   }
 
-  setPlayerStorage(ip: string, userId: string, playerStorage: PlayerStorage) {
-    return this.state.storage.put(
-      `${PLAYER_PREFIX}-${ip}-${userId}`,
-      playerStorage
-    )
+  setPlayerStorage(userId: string, playerStorage: PlayerStorage) {
+    return this.state.storage.put(`${PLAYER_PREFIX}-${userId}`, playerStorage)
   }
 
-  async getPlayersPayload(
-    ip: string,
-    userId: string
-  ): Promise<AllPlayersResponse> {
+  async getPlayersPayload(userId: string): Promise<AllPlayersResponse> {
     const allPlayers = await this.state.storage.list<PlayerStorage>({
       prefix: PLAYER_PREFIX
     })
@@ -84,7 +76,7 @@ export class KoiPolloi {
     let others: PlayerStorage[] = []
 
     allPlayers.forEach((value, key) => {
-      if (key.endsWith(`${ip}-${userId}`)) {
+      if (key.endsWith(userId)) {
         you = value
       } else {
         others.push(value)
@@ -133,7 +125,7 @@ export class KoiPolloi {
     this.broadcast(MessageToClients.NAME_UPDATE, payload)
   }
 
-  async handleSession(webSocket: WebSocket, ip: string, userId: string) {
+  async handleSession(webSocket: WebSocket, userId: string) {
     // @ts-ignore
     webSocket.accept()
 
@@ -143,13 +135,13 @@ export class KoiPolloi {
 
         switch (type) {
           case MessageToServer.REQUEST_FOR_ALL_PLAYERS: {
-            const { you, others } = await this.getPlayersPayload(ip, userId)
+            const { you, others } = await this.getPlayersPayload(userId)
             return this.sendPlayers(webSocket, { you, others })
           }
           case MessageToServer.NAME_UPDATE: {
-            const playerStorage = await this.getPlayerStorage(ip, userId)
+            const playerStorage = await this.getPlayerStorage(userId)
             if (playerStorage) {
-              this.setPlayerStorage(ip, userId, {
+              this.setPlayerStorage(userId, {
                 ...playerStorage,
                 name: payload as string
               })
@@ -175,7 +167,7 @@ export class KoiPolloi {
     }
 
     const cleanup = async () => {
-      this.deletePlayerWebSocket(ip, userId)
+      this.deletePlayerWebSocket(userId)
       webSocket.removeEventListener('message', messageHandler)
       webSocket.removeEventListener('error', errorHandler)
       webSocket.removeEventListener('close', closeHandler)
@@ -185,18 +177,18 @@ export class KoiPolloi {
     webSocket.addEventListener('error', errorHandler)
     webSocket.addEventListener('close', closeHandler)
 
-    let playerStorage = await this.getPlayerStorage(ip, userId)
+    let playerStorage = await this.getPlayerStorage(userId)
     if (!playerStorage) {
       playerStorage = {
         joinOrder: this.joined++,
         koi: 0,
         benigoi: 0
       }
-      this.setPlayerStorage(ip, userId, playerStorage)
+      this.setPlayerStorage(userId, playerStorage)
       this.state.storage.put(JOINED, this.joined)
     }
     this.broadcastNewPlayer(playerStorage)
-    this.setPlayerWebSocket(ip, userId, webSocket)
+    this.setPlayerWebSocket(userId, webSocket)
   }
 
   async fetch(request: Request) {
@@ -210,15 +202,13 @@ export class KoiPolloi {
 
         const { 0: client, 1: server } = new WebSocketPair()
 
-        const ip = request.headers.get('CF-Connecting-IP')
-        if (typeof ip !== 'string') {
-          return new Response('No IP', { status: 404 })
+        const params = new URLSearchParams(url.search)
+        const userId = params.get('userId')
+        if (!userId) {
+          return new Response('Missing userId', { status: 404 })
         }
 
-        const params = new URLSearchParams(url.search)
-        const userId = params.get('userId') ?? ''
-
-        await this.handleSession(server, ip, userId)
+        await this.handleSession(server, userId)
 
         return new Response(null, { status: 101, webSocket: client })
       }
