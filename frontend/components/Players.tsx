@@ -45,7 +45,8 @@ export const You = ({
   style?: CardProps['style']
 }) => {
   const serverName = player?.name
-  const [localName, setLocalName] = useState<string | undefined>(serverName)
+  const [localName, setLocalName] = useState<string>('')
+  const displayName = localName || serverName || ''
 
   return (
     <Card style={style}>
@@ -56,8 +57,8 @@ export const You = ({
           borderBottomWidth: 'thin',
         }}
         placeholder={placeholder}
-        value={localName ?? ''}
-        size={(localName ?? placeholder).length}
+        value={displayName}
+        size={displayName.length || placeholder.length}
         onChange={(e) => {
           onNameUpdate(e.target.value)
           setLocalName(e.target.value)
@@ -78,7 +79,7 @@ export const Other = ({
   return (
     <Card style={style}>
       <p style={{ ...sharedNameStyles, margin: 0 }}>
-        {player.name ?? `Player ${player.joinOrder}`}
+        {player.name || `Player ${player.joinOrder}`}
       </p>
       <Score koi={player?.koi ?? 0} benigoi={player?.benigoi ?? 0} />
     </Card>
