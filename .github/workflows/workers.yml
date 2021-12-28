@@ -20,7 +20,7 @@ jobs:
           - ubuntu-latest
           - macOS-latest
         node_version:
-          - 14
+          - 16
 
     runs-on: ${{ matrix.os }}
 

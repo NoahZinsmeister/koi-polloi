@@ -42,7 +42,7 @@ export class KoiPolloi {
   constructor(state: DurableObjectState) {
     this.state = state
 
-    this.state.blockConcurrencyWhile?.(async () => {
+    this.state.blockConcurrencyWhile(async () => {
       this.joined = (await this.state.storage.get<number>(JOINED)) ?? 0
     })
   }

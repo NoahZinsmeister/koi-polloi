@@ -2,7 +2,7 @@
   "name": "koi-polloi",
   "private": true,
   "engines": {
-    "node": "14"
+    "node": "16"
   },
   "module": "./dist/index.mjs",
   "scripts": {
@@ -20,7 +20,7 @@
     "@types/jest": "^26.0.23",
     "isomorphic-fetch": "^3.0.0",
     "jest": "^26.6.3",
-    "miniflare": "^1.4.1",
+    "miniflare": "^2.0.0-rc.4",
     "prettier": "^1.19.1",
     "rollup": "^2.36.1",
     "rollup-plugin-copy": "^3.3.0",
