@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PlayerStorage } from '../../workers/src/koi-polloi'
+import { PlayerState } from '../../workers/src/koi-polloi'
 
 interface CardProps {
   children: React.ReactNode
@@ -11,7 +11,8 @@ const Card = ({ children, style }: CardProps) => {
     <div
       style={{
         ...style,
-        minWidth: '15rem',
+        width: 'fit-content',
+        minWidth: '10rem',
         padding: '1rem',
         borderRadius: '1rem',
         border: '1px solid',
@@ -40,7 +41,7 @@ export const You = ({
   onNameUpdate,
   style,
 }: {
-  player?: PlayerStorage
+  player?: PlayerState
   onNameUpdate: (name: string) => void
   style?: CardProps['style']
 }) => {
@@ -57,6 +58,7 @@ export const You = ({
           borderBottomWidth: 'thin',
         }}
         placeholder={placeholder}
+        spellCheck={false}
         value={displayName}
         size={displayName.length || placeholder.length}
         onChange={(e) => {
@@ -73,7 +75,7 @@ export const Other = ({
   player,
   style,
 }: {
-  player: PlayerStorage
+  player: PlayerState
   style?: CardProps['style']
 }) => {
   return (

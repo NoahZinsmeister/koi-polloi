@@ -1,5 +1,10 @@
 const JOINED = 'JOINED'
 const PLAYER_PREFIX = 'PLAYER'
+const QUESTION_ORDER = 'QUESTION_ORDER'
+const GAME_STATE = 'GAME_STATE'
+
+const SECONDS_PER_ROUND = 60
+export const NUMBER_OF_QUESTIONS = 3
 
 export interface PlayerState {
   name?: string
@@ -8,31 +13,46 @@ export interface PlayerState {
   benigoi: number
 }
 
+export interface GameState {
+  questionIndex: number
+  deadline: number
+  answers: { [userId: string]: string }
+}
+
 export enum MessageToServerType {
-  REQUEST_FOR_ALL_PLAYERS = 'REQUEST_FOR_ALL_PLAYERS',
-  NAME_UPDATE = 'NAME_UPDATE'
+  REQUEST_FOR_DATA = 'REQUEST_FOR_DATA',
+  NAME_UPDATE = 'NAME_UPDATE',
+  ADVANCE_GAME_STATE = 'ADVANCE_GAME_STATE'
 }
 
 export type MessageToServer =
-  | { type: MessageToServerType.REQUEST_FOR_ALL_PLAYERS }
+  | { type: MessageToServerType.REQUEST_FOR_DATA }
   | { type: MessageToServerType.NAME_UPDATE; payload: string }
+  | { type: MessageToServerType.ADVANCE_GAME_STATE }
 
 export enum MessageToSingleClientType {
-  ALL_PLAYERS = 'ALL_PLAYERS'
+  ALL_PLAYERS = 'ALL_PLAYERS',
+  INITIAL_GAME_STATE = 'INITIAL_GAME_STATE'
 }
 
 export enum MessageToEveryClientType {
   NEW_PLAYER = 'NEW_PLAYER',
-  EXISTING_PLAYER_NAME_UPDATE = 'EXISTING_PLAYER_NAME_UPDATE'
+  EXISTING_PLAYER_NAME_UPDATE = 'EXISTING_PLAYER_NAME_UPDATE',
+  GAME_STATE_ADVANCED = 'GAME_STATE_ADVANCED'
 }
 
-type MessageToSingleClient = {
-  type: MessageToSingleClientType.ALL_PLAYERS
-  payload: {
-    you: PlayerState
-    others: PlayerState[]
-  }
-}
+type MessageToSingleClient =
+  | {
+      type: MessageToSingleClientType.ALL_PLAYERS
+      payload: {
+        you: PlayerState
+        others: PlayerState[]
+      }
+    }
+  | {
+      type: MessageToSingleClientType.INITIAL_GAME_STATE
+      payload: Omit<GameState, 'answers'>
+    }
 
 type MessageToEveryClient =
   | { type: MessageToEveryClientType.NEW_PLAYER; payload: PlayerState }
@@ -43,29 +63,69 @@ type MessageToEveryClient =
         name: string
       }
     }
+  | {
+      type: MessageToEveryClientType.GAME_STATE_ADVANCED
+      payload: Omit<GameState, 'answers'>
+    }
 
 export type MessageToClient = MessageToSingleClient | MessageToEveryClient
+
+// fisher-yates shuffle from https://javascript.info/array-methods#shuffle-an-array
+function shuffle(array: number[]) {
+  for (let i = array.length - 1; i > 0; i--) {
+    let j = Math.floor(Math.random() * (i + 1)) // random index from 0 to i
+
+      // swap elements array[i] and array[j]
+      // we use "destructuring assignment" syntax to achieve that
+      // you'll find more details about that syntax in later chapters
+      // same can be written as:
+      // let t = array[i]; array[i] = array[j]; array[j] = t
+    ;[array[i], array[j]] = [array[j], array[i]]
+  }
+  return array
+}
 
 export class KoiPolloi {
   readonly state: DurableObjectState
 
-  joined: number = 0
+  joined: number = -1
   webSockets: { [userId: string]: WebSocket } = {}
   playerStates: { [prefixedUserId: string]: PlayerState } = {}
+  questionOrder: number[] = []
+  gameState: GameState = {
+    questionIndex: -1,
+    deadline: Number.MAX_SAFE_INTEGER,
+    answers: {}
+  }
 
   constructor(state: DurableObjectState) {
     this.state = state
 
     this.state.blockConcurrencyWhile(async () => {
-      const [joined, playerStates] = await Promise.all([
+      const [
+        joined,
+        playerStates,
+        questionOrder,
+        gameState
+      ] = await Promise.all([
         this.state.storage.get<number>(JOINED),
         this.state.storage.list<PlayerState>({
           prefix: PLAYER_PREFIX
-        })
+        }),
+        this.state.storage.get<number[]>(QUESTION_ORDER),
+        this.state.storage.get<GameState>(GAME_STATE)
       ])
 
       this.joined = joined ?? 0
       this.playerStates = Object.fromEntries(playerStates)
+      this.questionOrder =
+        questionOrder ??
+        shuffle(Array.from({ length: NUMBER_OF_QUESTIONS }, (_, i) => i))
+      this.gameState = gameState ?? {
+        questionIndex: -1,
+        deadline: Number.MAX_SAFE_INTEGER,
+        answers: {}
+      }
     })
   }
 
@@ -83,6 +143,24 @@ export class KoiPolloi {
     const prefixedUserId = `${PLAYER_PREFIX}-${userId}`
     this.playerStates[prefixedUserId] = playerState
     this.state.storage.put(prefixedUserId, playerState)
+  }
+
+  advanceGameState() {
+    this.gameState = {
+      questionIndex: this.gameState.questionIndex + 1,
+      deadline: Date.now() + SECONDS_PER_ROUND * 1000,
+      answers: {}
+    }
+
+    this.sendMessageToEveryClient({
+      type: MessageToEveryClientType.GAME_STATE_ADVANCED,
+      payload: {
+        questionIndex: this.gameState.questionIndex,
+        deadline: this.gameState.deadline
+      }
+    })
+
+    this.state.storage.put(GAME_STATE, this.gameState)
   }
 
   sendMessageToSingleClient(
@@ -107,7 +185,7 @@ export class KoiPolloi {
         const message: MessageToServer = JSON.parse(event.data)
 
         switch (message.type) {
-          case MessageToServerType.REQUEST_FOR_ALL_PLAYERS: {
+          case MessageToServerType.REQUEST_FOR_DATA: {
             let you: PlayerState
             let others: PlayerState[] = []
 
@@ -121,13 +199,22 @@ export class KoiPolloi {
               }
             })
 
-            return this.sendMessageToSingleClient(webSocket, {
+            this.sendMessageToSingleClient(webSocket, {
               type: MessageToSingleClientType.ALL_PLAYERS,
               payload: {
                 you: you!,
                 others
               }
             })
+
+            this.sendMessageToSingleClient(webSocket, {
+              type: MessageToSingleClientType.INITIAL_GAME_STATE,
+              payload: {
+                questionIndex: this.gameState.questionIndex,
+                deadline: this.gameState.deadline
+              }
+            })
+            break
           }
           case MessageToServerType.NAME_UPDATE: {
             const playerState = this.getPlayerState(userId)
@@ -142,6 +229,9 @@ export class KoiPolloi {
                 name: message.payload
               }
             })
+          }
+          case MessageToServerType.ADVANCE_GAME_STATE: {
+            return this.advanceGameState()
           }
         }
       }

@@ -1,23 +1,23 @@
-export const Container = ({ children }: { children: React.ReactNode }) => {
+export const Container = ({
+  children,
+  centered,
+}: {
+  children: React.ReactNode
+  centered?: boolean
+}) => {
   return (
-    <div
+    <main
       style={{
-        padding: '0 2rem',
+        minHeight: '100vh',
+        padding: '2rem',
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: centered ?? true ? 'center' : 'flex-start',
+        alignItems: centered ?? true ? 'center' : 'flex-start',
       }}
     >
-      <main
-        style={{
-          minHeight: '100vh',
-          padding: '4rem 0',
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        {children}
-      </main>
-    </div>
+      {children}
+    </main>
   )
 }

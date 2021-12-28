@@ -21,7 +21,7 @@ export class WebsocketClient {
         resolve()
 
         this.sendMessageToServer({
-          type: MessageToServerType.REQUEST_FOR_ALL_PLAYERS,
+          type: MessageToServerType.REQUEST_FOR_DATA,
         })
       })
     })
@@ -70,7 +70,25 @@ export class WebsocketClient {
               },
             })
           }
+          break
         }
+        case MessageToSingleClientType.INITIAL_GAME_STATE: {
+          const { questionIndex, deadline } = message.payload
+          useStore.setState({
+            questionIndex,
+            deadline,
+          })
+          break
+        }
+        case MessageToEveryClientType.GAME_STATE_ADVANCED:
+          {
+            const update = message.payload
+            useStore.setState({
+              ...update,
+              answers: {},
+            })
+          }
+          break
       }
     })
   }
@@ -80,10 +98,16 @@ export class WebsocketClient {
     this.webSocket.send(JSON.stringify(message))
   }
 
-  async updateName(name: string) {
+  updateName(name: string) {
     this.sendMessageToServer({
       type: MessageToServerType.NAME_UPDATE,
       payload: name,
+    })
+  }
+
+  advanceGameState() {
+    this.sendMessageToServer({
+      type: MessageToServerType.ADVANCE_GAME_STATE,
     })
   }
 

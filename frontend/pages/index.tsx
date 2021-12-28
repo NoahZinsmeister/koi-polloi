@@ -6,10 +6,10 @@ import { Container } from '../components/Container'
 const Home: NextPage = () => {
   return (
     <Container>
-      <h1>Koi Polloi</h1>
+      <h1 style={{ fontSize: '4rem' }}>koi polloi</h1>
 
-      <Link href={`/${uuidv4()}`}>
-        <a>Create New Game</a>
+      <Link href={`/${uuidv4()}`} passHref>
+        <button>new game</button>
       </Link>
     </Container>
   )
