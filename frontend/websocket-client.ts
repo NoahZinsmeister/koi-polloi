@@ -1,10 +1,9 @@
 import {
-  AllPlayersResponse,
   MessageToClient,
-  MessageToClients,
+  MessageToEveryClientType,
   MessageToServer,
-  NameUpdateBroadcast,
-  NewPlayerBroadcast,
+  MessageToServerType,
+  MessageToSingleClientType,
 } from '../workers/src/koi-polloi'
 import { Store, useStore } from './store'
 
@@ -19,24 +18,22 @@ export class WebsocketClient {
 
     this.open = new Promise((resolve) => {
       this.webSocket.addEventListener('open', () => {
-        this.webSocket.send(
-          JSON.stringify({
-            type: MessageToServer.REQUEST_FOR_ALL_PLAYERS,
-          })
-        )
-
         resolve()
+
+        this.sendMessageToServer({
+          type: MessageToServerType.REQUEST_FOR_ALL_PLAYERS,
+        })
       })
     })
 
     this.webSocket.addEventListener('message', (event) => {
-      const { type, payload } = JSON.parse(event.data)
+      const message: MessageToClient = JSON.parse(event.data)
 
-      switch (type) {
-        case MessageToClient.ALL_PLAYERS: {
-          const { you, others } = payload as AllPlayersResponse
-          useStore.setState({ you })
+      switch (message.type) {
+        case MessageToSingleClientType.ALL_PLAYERS: {
+          const { you, others } = message.payload
           useStore.setState({
+            you,
             others: {
               ...others.reduce((accumulator: Store['others'], current) => {
                 accumulator[current.joinOrder.toString()] = current
@@ -46,8 +43,8 @@ export class WebsocketClient {
           })
           break
         }
-        case MessageToClients.NEW_PLAYER: {
-          const other = payload as NewPlayerBroadcast
+        case MessageToEveryClientType.NEW_PLAYER: {
+          const other = message.payload
           const { others } = useStore.getState()
           useStore.setState({
             others: {
@@ -57,8 +54,8 @@ export class WebsocketClient {
           })
           break
         }
-        case MessageToClients.NAME_UPDATE: {
-          const { joinOrder, name } = payload as NameUpdateBroadcast
+        case MessageToEveryClientType.EXISTING_PLAYER_NAME_UPDATE: {
+          const { joinOrder, name } = message.payload
           const { you, others } = useStore.getState()
           if (you?.joinOrder === joinOrder) {
             useStore.setState({ you: { ...you, name } })
@@ -78,14 +75,16 @@ export class WebsocketClient {
     })
   }
 
-  async updateName(name: string) {
+  async sendMessageToServer(message: MessageToServer) {
     await this.open
-    this.webSocket.send(
-      JSON.stringify({
-        type: MessageToServer.NAME_UPDATE,
-        payload: name,
-      })
-    )
+    this.webSocket.send(JSON.stringify(message))
+  }
+
+  async updateName(name: string) {
+    this.sendMessageToServer({
+      type: MessageToServerType.NAME_UPDATE,
+      payload: name,
+    })
   }
 
   close() {

@@ -1,9 +1,9 @@
 import create from 'zustand'
-import { PlayerStorage } from '../workers/src/koi-polloi'
+import { PlayerState } from '../workers/src/koi-polloi'
 
 export interface Store {
-  you?: PlayerStorage
-  others: { [joinOrder: string]: PlayerStorage }
+  you?: PlayerState
+  others: { [joinOrder: string]: PlayerState }
 }
 
 export const useStore = create<Store>(() => ({

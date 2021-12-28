@@ -1,194 +1,188 @@
 const JOINED = 'JOINED'
 const PLAYER_PREFIX = 'PLAYER'
 
-export interface PlayerStorage {
+export interface PlayerState {
   name?: string
   joinOrder: number
   koi: number
   benigoi: number
 }
 
-export enum MessageToServer {
+export enum MessageToServerType {
   REQUEST_FOR_ALL_PLAYERS = 'REQUEST_FOR_ALL_PLAYERS',
-  NAME_UPDATE = 'NAME_UPDATE_TO_SERVER'
+  NAME_UPDATE = 'NAME_UPDATE'
 }
 
-export enum MessageToClient {
+export type MessageToServer =
+  | { type: MessageToServerType.REQUEST_FOR_ALL_PLAYERS }
+  | { type: MessageToServerType.NAME_UPDATE; payload: string }
+
+export enum MessageToSingleClientType {
   ALL_PLAYERS = 'ALL_PLAYERS'
 }
 
-export enum MessageToClients {
+export enum MessageToEveryClientType {
   NEW_PLAYER = 'NEW_PLAYER',
-  NAME_UPDATE = 'NAME_UPDATE_TO_CLIENTS'
+  EXISTING_PLAYER_NAME_UPDATE = 'EXISTING_PLAYER_NAME_UPDATE'
 }
 
-export interface AllPlayersResponse {
-  you: PlayerStorage
-  others: PlayerStorage[]
+type MessageToSingleClient = {
+  type: MessageToSingleClientType.ALL_PLAYERS
+  payload: {
+    you: PlayerState
+    others: PlayerState[]
+  }
 }
 
-export type NewPlayerBroadcast = PlayerStorage
+type MessageToEveryClient =
+  | { type: MessageToEveryClientType.NEW_PLAYER; payload: PlayerState }
+  | {
+      type: MessageToEveryClientType.EXISTING_PLAYER_NAME_UPDATE
+      payload: {
+        joinOrder: number
+        name: string
+      }
+    }
 
-export interface NameUpdateBroadcast {
-  joinOrder: number
-  name: string
-}
+export type MessageToClient = MessageToSingleClient | MessageToEveryClient
 
 export class KoiPolloi {
-  joined: number = 0
-  webSockets: { [key: string]: WebSocket } = {}
   readonly state: DurableObjectState
+
+  joined: number = 0
+  webSockets: { [userId: string]: WebSocket } = {}
+  playerStates: { [prefixedUserId: string]: PlayerState } = {}
 
   constructor(state: DurableObjectState) {
     this.state = state
 
     this.state.blockConcurrencyWhile(async () => {
-      this.joined = (await this.state.storage.get<number>(JOINED)) ?? 0
-    })
-  }
-
-  getPlayerWebSocket(userId: string) {
-    return this.webSockets[userId]
-  }
-
-  setPlayerWebSocket(userId: string, webSocket: WebSocket) {
-    this.webSockets[userId] = webSocket
-  }
-
-  deletePlayerWebSocket(userId: string) {
-    delete this.webSockets[userId]
-  }
-
-  getPlayerStorage(userId: string) {
-    return this.state.storage.get<PlayerStorage>(`${PLAYER_PREFIX}-${userId}`)
-  }
-
-  setPlayerStorage(userId: string, playerStorage: PlayerStorage) {
-    return this.state.storage.put(`${PLAYER_PREFIX}-${userId}`, playerStorage)
-  }
-
-  async getPlayersPayload(userId: string): Promise<AllPlayersResponse> {
-    const allPlayers = await this.state.storage.list<PlayerStorage>({
-      prefix: PLAYER_PREFIX
-    })
-
-    let you: PlayerStorage
-    let others: PlayerStorage[] = []
-
-    allPlayers.forEach((value, key) => {
-      if (key.endsWith(userId)) {
-        you = value
-      } else {
-        others.push(value)
-      }
-    })
-
-    return { you: you!, others }
-  }
-
-  sendToClient(
-    webSocket: WebSocket,
-    type: MessageToClient,
-    payload: AllPlayersResponse
-  ) {
-    webSocket.send(
-      JSON.stringify({
-        type,
-        payload
-      })
-    )
-  }
-
-  sendPlayers(webSocket: WebSocket, payload: AllPlayersResponse) {
-    this.sendToClient(webSocket, MessageToClient.ALL_PLAYERS, payload)
-  }
-
-  broadcast(
-    type: MessageToClients,
-    payload: NewPlayerBroadcast | NameUpdateBroadcast
-  ) {
-    Object.values(this.webSockets).forEach(webSocket => {
-      webSocket.send(
-        JSON.stringify({
-          type,
-          payload
+      const [joined, playerStates] = await Promise.all([
+        this.state.storage.get<number>(JOINED),
+        this.state.storage.list<PlayerState>({
+          prefix: PLAYER_PREFIX
         })
-      )
+      ])
+
+      this.joined = joined ?? 0
+      this.playerStates = Object.fromEntries(playerStates)
     })
   }
 
-  broadcastNewPlayer(payload: NewPlayerBroadcast) {
-    this.broadcast(MessageToClients.NEW_PLAYER, payload)
+  getAndIncrementJoined() {
+    const joined = this.joined++
+    this.state.storage.put(JOINED, this.joined)
+    return joined
   }
 
-  broadcastNameUpdate(payload: NameUpdateBroadcast) {
-    this.broadcast(MessageToClients.NAME_UPDATE, payload)
+  getPlayerState(userId: string): PlayerState | undefined {
+    return this.playerStates[`${PLAYER_PREFIX}-${userId}`]
+  }
+
+  setPlayerState(userId: string, playerState: PlayerState) {
+    const prefixedUserId = `${PLAYER_PREFIX}-${userId}`
+    this.playerStates[prefixedUserId] = playerState
+    this.state.storage.put(prefixedUserId, playerState)
+  }
+
+  sendMessageToSingleClient(
+    webSocket: WebSocket,
+    message: MessageToSingleClient
+  ) {
+    webSocket.send(JSON.stringify(message))
+  }
+
+  sendMessageToEveryClient(message: MessageToEveryClient) {
+    Object.values(this.webSockets).forEach(webSocket => {
+      webSocket.send(JSON.stringify(message))
+    })
   }
 
   async handleSession(webSocket: WebSocket, userId: string) {
     // @ts-ignore
     webSocket.accept()
 
-    const messageHandler = async (event: MessageEvent) => {
+    const messageHandler = (event: MessageEvent) => {
       if (typeof event.data === 'string') {
-        const { type, payload } = JSON.parse(event.data)
+        const message: MessageToServer = JSON.parse(event.data)
 
-        switch (type) {
-          case MessageToServer.REQUEST_FOR_ALL_PLAYERS: {
-            const { you, others } = await this.getPlayersPayload(userId)
-            return this.sendPlayers(webSocket, { you, others })
+        switch (message.type) {
+          case MessageToServerType.REQUEST_FOR_ALL_PLAYERS: {
+            let you: PlayerState
+            let others: PlayerState[] = []
+
+            Object.keys(this.playerStates).forEach(prefixedUserId => {
+              const playerState = this.playerStates[prefixedUserId]
+
+              if (prefixedUserId.endsWith(userId)) {
+                you = playerState
+              } else {
+                others.push(playerState)
+              }
+            })
+
+            return this.sendMessageToSingleClient(webSocket, {
+              type: MessageToSingleClientType.ALL_PLAYERS,
+              payload: {
+                you: you!,
+                others
+              }
+            })
           }
-          case MessageToServer.NAME_UPDATE: {
-            const playerStorage = await this.getPlayerStorage(userId)
-            if (playerStorage) {
-              this.setPlayerStorage(userId, {
-                ...playerStorage,
-                name: payload as string
-              })
-              this.broadcastNameUpdate({
-                joinOrder: playerStorage.joinOrder,
-                name: payload as string
-              })
-            }
-            break
+          case MessageToServerType.NAME_UPDATE: {
+            const playerState = this.getPlayerState(userId)
+            this.setPlayerState(userId, {
+              ...playerState!,
+              name: message.payload
+            })
+            return this.sendMessageToEveryClient({
+              type: MessageToEveryClientType.EXISTING_PLAYER_NAME_UPDATE,
+              payload: {
+                joinOrder: playerState!.joinOrder,
+                name: message.payload
+              }
+            })
           }
         }
       }
     }
 
-    const errorHandler = async (event: Event) => {
+    const errorHandler = (event: Event) => {
       console.error(event)
       webSocket.close()
       cleanup()
     }
 
-    const closeHandler = async () => {
+    const closeHandler = () => {
       cleanup()
     }
 
-    const cleanup = async () => {
-      this.deletePlayerWebSocket(userId)
+    const cleanup = () => {
       webSocket.removeEventListener('message', messageHandler)
       webSocket.removeEventListener('error', errorHandler)
       webSocket.removeEventListener('close', closeHandler)
+      delete this.webSockets[userId]
     }
 
     webSocket.addEventListener('message', messageHandler)
     webSocket.addEventListener('error', errorHandler)
     webSocket.addEventListener('close', closeHandler)
 
-    let playerStorage = await this.getPlayerStorage(userId)
-    if (!playerStorage) {
-      playerStorage = {
-        joinOrder: this.joined++,
+    this.webSockets[userId] = webSocket
+
+    let playerState = this.getPlayerState(userId)
+    if (!playerState) {
+      playerState = {
+        joinOrder: this.getAndIncrementJoined(),
         koi: 0,
         benigoi: 0
       }
-      this.setPlayerStorage(userId, playerStorage)
-      this.state.storage.put(JOINED, this.joined)
+      this.setPlayerState(userId, playerState)
+      this.sendMessageToEveryClient({
+        type: MessageToEveryClientType.NEW_PLAYER,
+        payload: playerState
+      })
     }
-    this.broadcastNewPlayer(playerStorage)
-    this.setPlayerWebSocket(userId, webSocket)
   }
 
   async fetch(request: Request) {
