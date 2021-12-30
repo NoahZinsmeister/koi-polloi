@@ -2,12 +2,12 @@ import type { AppProps } from 'next/app'
 import dynamic from 'next/dynamic'
 import Head from 'next/head'
 import '../globals.css'
-import { LocalStorageProviderProps } from '../local-storage'
+import { SessionStorageProviderProps } from '../local-storage'
 
-const LocalStorageProviderWithNoSSR = dynamic<LocalStorageProviderProps>(
+const SessionStorageProviderWithNoSSR = dynamic<SessionStorageProviderProps>(
   () =>
     import('../local-storage').then(
-      ({ LocalStorageProvider }) => LocalStorageProvider
+      ({ SessionStorageProvider }) => SessionStorageProvider
     ),
   { ssr: false }
 )
@@ -21,9 +21,9 @@ function MyApp({ Component, pageProps }: AppProps) {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <LocalStorageProviderWithNoSSR>
+      <SessionStorageProviderWithNoSSR>
         <Component {...pageProps} />
-      </LocalStorageProviderWithNoSSR>
+      </SessionStorageProviderWithNoSSR>
     </>
   )
 }

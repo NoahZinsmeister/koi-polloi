@@ -5,7 +5,7 @@ const KEY = 'USER_ID'
 
 function initialize(): string {
   try {
-    const existingUserId = window.localStorage.getItem(KEY)
+    const existingUserId = window.sessionStorage.getItem(KEY)
     if (existingUserId === null) {
       return uuidv4()
     }
@@ -15,32 +15,32 @@ function initialize(): string {
   }
 }
 
-const LocalStorageContext = createContext<string>('')
+const SessionStorageContext = createContext<string>('')
 
-export interface LocalStorageProviderProps {
+export interface SessionStorageProviderProps {
   children: React.ReactNode
 }
 
-export const LocalStorageProvider = ({
+export const SessionStorageProvider = ({
   children,
-}: LocalStorageProviderProps) => {
+}: SessionStorageProviderProps) => {
   const [userId] = useState(initialize)
 
   useEffect(() => {
-    window.localStorage.setItem(KEY, userId)
+    window.sessionStorage.setItem(KEY, userId)
   }, [userId])
 
   return (
-    <LocalStorageContext.Provider value={userId}>
+    <SessionStorageContext.Provider value={userId}>
       {children}
-    </LocalStorageContext.Provider>
+    </SessionStorageContext.Provider>
   )
 }
 
-function useLocalStorageContext() {
-  return useContext(LocalStorageContext)
+function useSessionStorageContext() {
+  return useContext(SessionStorageContext)
 }
 
 export function useUserId(): string {
-  return useLocalStorageContext()
+  return useSessionStorageContext()
 }
