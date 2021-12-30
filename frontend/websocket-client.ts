@@ -30,8 +30,16 @@ export class WebsocketClient {
       const message: MessageToClient = JSON.parse(event.data)
 
       switch (message.type) {
-        case MessageToSingleClientType.ALL_PLAYERS: {
-          const { you, others, benigoiHolder } = message.payload
+        case MessageToSingleClientType.ALL_PLAYERS_AND_GAME_STATE: {
+          const {
+            you,
+            others,
+            benigoiHolder,
+            questionIndex,
+            deadline,
+            answer,
+          } = message.payload
+          const { answers } = useStore.getState()
           useStore.setState({
             you,
             others: {
@@ -41,6 +49,12 @@ export class WebsocketClient {
               }, {}),
             },
             benigoiHolder,
+            questionIndex,
+            deadline,
+            answers: {
+              ...answers,
+              ...(answer ? { [you.joinOrder]: answer } : {}),
+            },
           })
 
           break
@@ -73,15 +87,6 @@ export class WebsocketClient {
               },
             })
           }
-
-          break
-        }
-        case MessageToSingleClientType.INITIAL_GAME_STATE: {
-          const { questionIndex, deadline } = message.payload
-          useStore.setState({
-            questionIndex,
-            deadline,
-          })
 
           break
         }

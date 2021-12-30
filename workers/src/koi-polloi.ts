@@ -34,8 +34,7 @@ export type MessageToServer =
   | { type: MessageToServerType.SUBMIT_ANSWER; payload: string }
 
 export enum MessageToSingleClientType {
-  ALL_PLAYERS = 'ALL_PLAYERS',
-  INITIAL_GAME_STATE = 'INITIAL_GAME_STATE'
+  ALL_PLAYERS_AND_GAME_STATE = 'ALL_PLAYERS_AND_GAME_STATE'
 }
 
 export enum MessageToEveryClientType {
@@ -45,19 +44,16 @@ export enum MessageToEveryClientType {
   ROUND_FINALIZED = 'ROUND_FINALIZED'
 }
 
-type MessageToSingleClient =
-  | {
-      type: MessageToSingleClientType.ALL_PLAYERS
-      payload: {
-        you: PlayerState
-        others: PlayerState[]
-        benigoiHolder: number | undefined
-      }
+type MessageToSingleClient = {
+  type: MessageToSingleClientType.ALL_PLAYERS_AND_GAME_STATE
+  payload: {
+    you: PlayerState
+    others: PlayerState[]
+    benigoiHolder: number | undefined
+  } & Omit<GameState, 'answers' | 'finalized'> & {
+      answer: string | undefined
     }
-  | {
-      type: MessageToSingleClientType.INITIAL_GAME_STATE
-      payload: Omit<GameState, 'answers' | 'finalized'>
-    }
+}
 
 type MessageToEveryClient =
   | { type: MessageToEveryClientType.NEW_PLAYER; payload: PlayerState }
@@ -243,22 +239,17 @@ export class KoiPolloi {
             })
 
             this.sendMessageToSingleClient(webSocket, {
-              type: MessageToSingleClientType.ALL_PLAYERS,
+              type: MessageToSingleClientType.ALL_PLAYERS_AND_GAME_STATE,
               payload: {
                 you: you!,
                 others,
                 benigoiHolder:
                   this.benigoiHolder === undefined
                     ? undefined
-                    : this.getPlayerState(this.benigoiHolder)!.joinOrder
-              }
-            })
-
-            this.sendMessageToSingleClient(webSocket, {
-              type: MessageToSingleClientType.INITIAL_GAME_STATE,
-              payload: {
+                    : this.getPlayerState(this.benigoiHolder)!.joinOrder,
                 questionIndex: this.questionOrder[this.gameState.questionIndex],
-                deadline: this.gameState.deadline
+                deadline: this.gameState.deadline,
+                answer: this.gameState.answers[userId]
               }
             })
 
