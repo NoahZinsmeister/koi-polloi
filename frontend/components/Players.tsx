@@ -23,13 +23,17 @@ const Card = ({ children, style }: CardProps) => {
   )
 }
 
-const Score = ({ koi, benigoi }: { koi: number; benigoi: number }) => {
-  return (
-    <>
-      <p>Koi: {koi}</p>
-      <p style={{ marginBottom: 0 }}>Benigoi: {benigoi}</p>
-    </>
-  )
+const Score = ({ koi, benigoi }: { koi: number; benigoi: boolean }) => {
+  if (benigoi) {
+    return (
+      <>
+        <p>koi: {koi}</p>
+        <p style={{ marginBottom: 0 }}>has the benigoi!</p>
+      </>
+    )
+  } else {
+    return <p style={{ marginBottom: 0 }}>koi: {koi}</p>
+  }
 }
 
 const sharedNameStyles = { fontSize: '1.25rem', fontWeight: 600 }
@@ -38,10 +42,12 @@ const placeholder = 'Your Name'
 
 export const You = ({
   player,
+  benigoiHolder,
   onNameUpdate,
   style,
 }: {
   player?: PlayerState
+  benigoiHolder: number | undefined
   onNameUpdate: (name: string) => void
   style?: CardProps['style']
 }) => {
@@ -52,6 +58,7 @@ export const You = ({
   return (
     <Card style={style}>
       <input
+        type="text"
         style={{
           ...sharedNameStyles,
           borderWidth: 0,
@@ -66,16 +73,21 @@ export const You = ({
           setLocalName(e.target.value)
         }}
       />
-      <Score koi={player?.koi ?? 0} benigoi={player?.benigoi ?? 0} />
+      <Score
+        koi={player?.koi ?? 0}
+        benigoi={player?.joinOrder === benigoiHolder}
+      />
     </Card>
   )
 }
 
 export const Other = ({
   player,
+  benigoiHolder,
   style,
 }: {
   player: PlayerState
+  benigoiHolder: number | undefined
   style?: CardProps['style']
 }) => {
   return (
@@ -83,7 +95,10 @@ export const Other = ({
       <p style={{ ...sharedNameStyles, margin: 0 }}>
         {player.name || `Player ${player.joinOrder}`}
       </p>
-      <Score koi={player?.koi ?? 0} benigoi={player?.benigoi ?? 0} />
+      <Score
+        koi={player?.koi ?? 0}
+        benigoi={player?.joinOrder === benigoiHolder}
+      />
     </Card>
   )
 }

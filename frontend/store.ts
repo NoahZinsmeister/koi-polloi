@@ -3,10 +3,11 @@ import { PlayerState } from '../workers/src/koi-polloi'
 
 export interface Store {
   you?: PlayerState
-  others: { [joinOrder: string]: PlayerState }
+  others: { [joinOrder: number]: PlayerState }
+  benigoiHolder?: number
   questionIndex?: number
   deadline?: number
-  answers: {}
+  answers: { [joinOrder: number]: string }
 }
 
 export const useStore = create<Store>(() => ({

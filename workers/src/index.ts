@@ -10,6 +10,12 @@ export default {
   async fetch(request: Request, env: Env) {
     try {
       const url = new URL(request.url)
+      if (
+        !(url.hostname === 'www.koipolloi.fish' || url.hostname === 'localhost')
+      ) {
+        return new Response(null, { status: 401 })
+      }
+
       const params = new URLSearchParams(url.search)
       const gameId = params.get('gameId')
       if (!gameId) {

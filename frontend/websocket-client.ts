@@ -31,16 +31,18 @@ export class WebsocketClient {
 
       switch (message.type) {
         case MessageToSingleClientType.ALL_PLAYERS: {
-          const { you, others } = message.payload
+          const { you, others, benigoiHolder } = message.payload
           useStore.setState({
             you,
             others: {
               ...others.reduce((accumulator: Store['others'], current) => {
-                accumulator[current.joinOrder.toString()] = current
+                accumulator[current.joinOrder] = current
                 return accumulator
               }, {}),
             },
+            benigoiHolder,
           })
+
           break
         }
         case MessageToEveryClientType.NEW_PLAYER: {
@@ -49,9 +51,10 @@ export class WebsocketClient {
           useStore.setState({
             others: {
               ...others,
-              [other.joinOrder.toString()]: other,
+              [other.joinOrder]: other,
             },
           })
+
           break
         }
         case MessageToEveryClientType.EXISTING_PLAYER_NAME_UPDATE: {
@@ -63,13 +66,14 @@ export class WebsocketClient {
             useStore.setState({
               others: {
                 ...others,
-                [joinOrder.toString()]: {
-                  ...others[joinOrder.toString()],
+                [joinOrder]: {
+                  ...others[joinOrder],
                   name,
                 },
               },
             })
           }
+
           break
         }
         case MessageToSingleClientType.INITIAL_GAME_STATE: {
@@ -78,17 +82,40 @@ export class WebsocketClient {
             questionIndex,
             deadline,
           })
+
           break
         }
-        case MessageToEveryClientType.GAME_STATE_ADVANCED:
-          {
-            const update = message.payload
-            useStore.setState({
-              ...update,
-              answers: {},
-            })
-          }
+        case MessageToEveryClientType.GAME_STATE_ADVANCED: {
+          const update = message.payload
+          useStore.setState({
+            ...update,
+            answers: {},
+          })
+
           break
+        }
+        case MessageToEveryClientType.ROUND_FINALIZED: {
+          const { answers, koi, benigoiHolder } = message.payload
+
+          const { you, others } = useStore.getState()
+
+          Object.keys(koi).forEach((joinOrder) => {
+            if (Number(joinOrder) === you!.joinOrder) {
+              you!.koi = koi[Number(joinOrder)]
+            } else {
+              others[Number(joinOrder)].koi = koi[Number(joinOrder)]
+            }
+          })
+
+          useStore.setState({
+            you,
+            others,
+            answers,
+            benigoiHolder,
+          })
+
+          break
+        }
       }
     })
   }
@@ -108,6 +135,21 @@ export class WebsocketClient {
   advanceGameState() {
     this.sendMessageToServer({
       type: MessageToServerType.ADVANCE_GAME_STATE,
+    })
+  }
+
+  submitAnswer(answer: string) {
+    const { you, answers } = useStore.getState()
+
+    useStore.setState({
+      answers: {
+        ...answers,
+        [you!.joinOrder]: answer,
+      },
+    })
+    this.sendMessageToServer({
+      type: MessageToServerType.SUBMIT_ANSWER,
+      payload: answer,
     })
   }
 

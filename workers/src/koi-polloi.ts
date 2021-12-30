@@ -1,5 +1,6 @@
 const JOINED = 'JOINED'
 const PLAYER_PREFIX = 'PLAYER'
+const BENIGOI_HOLDER = 'BENIGOI_HOLDER'
 const QUESTION_ORDER = 'QUESTION_ORDER'
 const GAME_STATE = 'GAME_STATE'
 
@@ -10,25 +11,27 @@ export interface PlayerState {
   name?: string
   joinOrder: number
   koi: number
-  benigoi: number
 }
 
 export interface GameState {
   questionIndex: number
   deadline: number
   answers: { [userId: string]: string }
+  finalized: boolean
 }
 
 export enum MessageToServerType {
   REQUEST_FOR_DATA = 'REQUEST_FOR_DATA',
   NAME_UPDATE = 'NAME_UPDATE',
-  ADVANCE_GAME_STATE = 'ADVANCE_GAME_STATE'
+  ADVANCE_GAME_STATE = 'ADVANCE_GAME_STATE',
+  SUBMIT_ANSWER = 'SUBMIT_ANSWER'
 }
 
 export type MessageToServer =
   | { type: MessageToServerType.REQUEST_FOR_DATA }
   | { type: MessageToServerType.NAME_UPDATE; payload: string }
   | { type: MessageToServerType.ADVANCE_GAME_STATE }
+  | { type: MessageToServerType.SUBMIT_ANSWER; payload: string }
 
 export enum MessageToSingleClientType {
   ALL_PLAYERS = 'ALL_PLAYERS',
@@ -38,7 +41,8 @@ export enum MessageToSingleClientType {
 export enum MessageToEveryClientType {
   NEW_PLAYER = 'NEW_PLAYER',
   EXISTING_PLAYER_NAME_UPDATE = 'EXISTING_PLAYER_NAME_UPDATE',
-  GAME_STATE_ADVANCED = 'GAME_STATE_ADVANCED'
+  GAME_STATE_ADVANCED = 'GAME_STATE_ADVANCED',
+  ROUND_FINALIZED = 'ROUND_FINALIZED'
 }
 
 type MessageToSingleClient =
@@ -47,11 +51,12 @@ type MessageToSingleClient =
       payload: {
         you: PlayerState
         others: PlayerState[]
+        benigoiHolder: number | undefined
       }
     }
   | {
       type: MessageToSingleClientType.INITIAL_GAME_STATE
-      payload: Omit<GameState, 'answers'>
+      payload: Omit<GameState, 'answers' | 'finalized'>
     }
 
 type MessageToEveryClient =
@@ -65,7 +70,15 @@ type MessageToEveryClient =
     }
   | {
       type: MessageToEveryClientType.GAME_STATE_ADVANCED
-      payload: Omit<GameState, 'answers'>
+      payload: Omit<GameState, 'answers' | 'finalized'>
+    }
+  | {
+      type: MessageToEveryClientType.ROUND_FINALIZED
+      payload: {
+        answers: { [joinOrder: number]: string }
+        koi: { [joinOrder: number]: number }
+        benigoiHolder: number | undefined
+      }
     }
 
 export type MessageToClient = MessageToSingleClient | MessageToEveryClient
@@ -91,11 +104,13 @@ export class KoiPolloi {
   joined: number = -1
   webSockets: { [userId: string]: WebSocket } = {}
   playerStates: { [prefixedUserId: string]: PlayerState } = {}
+  benigoiHolder: string | undefined = undefined
   questionOrder: number[] = []
   gameState: GameState = {
     questionIndex: -1,
-    deadline: Number.MAX_SAFE_INTEGER,
-    answers: {}
+    deadline: 0,
+    answers: {},
+    finalized: false
   }
 
   constructor(state: DurableObjectState) {
@@ -105,6 +120,7 @@ export class KoiPolloi {
       const [
         joined,
         playerStates,
+        benigoiHolder,
         questionOrder,
         gameState
       ] = await Promise.all([
@@ -112,19 +128,27 @@ export class KoiPolloi {
         this.state.storage.list<PlayerState>({
           prefix: PLAYER_PREFIX
         }),
+        this.state.storage.get<string>(BENIGOI_HOLDER),
         this.state.storage.get<number[]>(QUESTION_ORDER),
         this.state.storage.get<GameState>(GAME_STATE)
       ])
 
       this.joined = joined ?? 0
       this.playerStates = Object.fromEntries(playerStates)
-      this.questionOrder =
-        questionOrder ??
-        shuffle(Array.from({ length: NUMBER_OF_QUESTIONS }, (_, i) => i))
+      this.benigoiHolder = benigoiHolder
+      if (questionOrder === undefined) {
+        this.questionOrder = shuffle(
+          Array.from({ length: NUMBER_OF_QUESTIONS }, (_, i) => i)
+        )
+        this.state.storage.put(QUESTION_ORDER, this.questionOrder)
+      } else {
+        this.questionOrder = questionOrder
+      }
       this.gameState = gameState ?? {
         questionIndex: -1,
-        deadline: Number.MAX_SAFE_INTEGER,
-        answers: {}
+        deadline: 0,
+        answers: {},
+        finalized: true
       }
     })
   }
@@ -145,22 +169,41 @@ export class KoiPolloi {
     this.state.storage.put(prefixedUserId, playerState)
   }
 
-  advanceGameState() {
-    this.gameState = {
-      questionIndex: this.gameState.questionIndex + 1,
-      deadline: Date.now() + SECONDS_PER_ROUND * 1000,
-      answers: {}
-    }
+  setGameState(gameState: GameState) {
+    this.gameState = gameState
+    this.state.storage.put(GAME_STATE, this.gameState)
+  }
 
-    this.sendMessageToEveryClient({
-      type: MessageToEveryClientType.GAME_STATE_ADVANCED,
-      payload: {
-        questionIndex: this.gameState.questionIndex,
-        deadline: this.gameState.deadline
+  finalizeRound() {
+    const answers: { [joinOrder: number]: string } = {}
+    const koi: { [joinOrder: number]: number } = {}
+
+    Object.keys(this.gameState.answers).forEach(userId => {
+      const playerState = this.getPlayerState(userId)
+      answers[playerState!.joinOrder] = this.gameState.answers[userId]
+
+      const earnedKoi = true
+      if (earnedKoi) {
+        const newKoi = playerState!.koi + 1
+        this.setPlayerState(userId, {
+          ...playerState!,
+          koi: newKoi
+        })
+        koi[playerState!.joinOrder] = newKoi
       }
     })
 
-    this.state.storage.put(GAME_STATE, this.gameState)
+    this.benigoiHolder = undefined
+    if (this.benigoiHolder !== undefined) {
+      this.state.storage.put(BENIGOI_HOLDER, this.benigoiHolder)
+    }
+
+    this.setGameState({ ...this.gameState, finalized: true })
+
+    this.sendMessageToEveryClient({
+      type: MessageToEveryClientType.ROUND_FINALIZED,
+      payload: { answers, koi, benigoiHolder: undefined }
+    })
   }
 
   sendMessageToSingleClient(
@@ -203,17 +246,22 @@ export class KoiPolloi {
               type: MessageToSingleClientType.ALL_PLAYERS,
               payload: {
                 you: you!,
-                others
+                others,
+                benigoiHolder:
+                  this.benigoiHolder === undefined
+                    ? undefined
+                    : this.getPlayerState(this.benigoiHolder)!.joinOrder
               }
             })
 
             this.sendMessageToSingleClient(webSocket, {
               type: MessageToSingleClientType.INITIAL_GAME_STATE,
               payload: {
-                questionIndex: this.gameState.questionIndex,
+                questionIndex: this.questionOrder[this.gameState.questionIndex],
                 deadline: this.gameState.deadline
               }
             })
+
             break
           }
           case MessageToServerType.NAME_UPDATE: {
@@ -222,16 +270,71 @@ export class KoiPolloi {
               ...playerState!,
               name: message.payload
             })
-            return this.sendMessageToEveryClient({
+            this.sendMessageToEveryClient({
               type: MessageToEveryClientType.EXISTING_PLAYER_NAME_UPDATE,
               payload: {
                 joinOrder: playerState!.joinOrder,
                 name: message.payload
               }
             })
+
+            break
           }
           case MessageToServerType.ADVANCE_GAME_STATE: {
-            return this.advanceGameState()
+            const delta = SECONDS_PER_ROUND * 1000
+
+            // this should always be true
+            if (this.gameState.finalized) {
+              this.setGameState({
+                questionIndex: this.gameState.questionIndex + 1,
+                deadline: Date.now() + delta,
+                answers: {},
+                finalized: false
+              })
+              console.log(this.gameState)
+
+              this.sendMessageToEveryClient({
+                type: MessageToEveryClientType.GAME_STATE_ADVANCED,
+                payload: {
+                  questionIndex: this.questionOrder[
+                    this.gameState.questionIndex
+                  ],
+                  deadline: this.gameState.deadline
+                }
+              })
+
+              // set timeout to finalize the next round
+              const cachedQuestionIndex = this.gameState.questionIndex
+              setTimeout(() => {
+                if (
+                  this.gameState.questionIndex === cachedQuestionIndex &&
+                  !this.gameState.finalized
+                ) {
+                  this.finalizeRound()
+                }
+              }, delta)
+            }
+
+            break
+          }
+          case MessageToServerType.SUBMIT_ANSWER: {
+            this.setGameState({
+              ...this.gameState,
+              answers: {
+                ...this.gameState.answers,
+                [userId]: message.payload
+              }
+            })
+
+            const allAnswersSubmitted = Object.keys(this.webSockets).every(
+              userId => this.gameState.answers[userId] !== undefined
+            )
+
+            if (allAnswersSubmitted && !this.gameState.finalized) {
+              this.finalizeRound()
+            }
+
+            break
           }
         }
       }
@@ -264,8 +367,7 @@ export class KoiPolloi {
     if (!playerState) {
       playerState = {
         joinOrder: this.getAndIncrementJoined(),
-        koi: 0,
-        benigoi: 0
+        koi: 0
       }
       this.setPlayerState(userId, playerState)
       this.sendMessageToEveryClient({

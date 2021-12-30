@@ -10,7 +10,7 @@ export const Joining = ({
   gameId: string | string[] | undefined
   websocket: WebsocketClient | null
 }) => {
-  const { you, others } = useStore()
+  const { you, others, benigoiHolder } = useStore()
 
   const onNameUpdate = useCallback(
     (name: string) => {
@@ -87,7 +87,11 @@ export const Joining = ({
       >
         <h1 style={{ margin: '0 1rem 0 0' }}>you:</h1>
         <div style={{ flexGrow: 1, display: 'flex', justifyContent: 'center' }}>
-          <You player={you} onNameUpdate={onNameUpdate} />
+          <You
+            player={you}
+            benigoiHolder={benigoiHolder}
+            onNameUpdate={onNameUpdate}
+          />
         </div>
       </div>
 
@@ -112,7 +116,11 @@ export const Joining = ({
           {Object.values(others)
             .sort((a, b) => (a.joinOrder < b.joinOrder ? -1 : 1))
             .map((other) => (
-              <Other key={other.joinOrder} player={other} />
+              <Other
+                key={other.joinOrder}
+                player={other}
+                benigoiHolder={benigoiHolder}
+              />
             ))}
         </div>
       </div>
@@ -124,7 +132,10 @@ export const Joining = ({
           width: '100%',
         }}
       >
-        <button onClick={() => websocket?.advanceGameState()}>
+        <button
+          onClick={() => websocket?.advanceGameState()}
+          disabled={Object.keys(others).length < 1}
+        >
           start game
         </button>
       </div>

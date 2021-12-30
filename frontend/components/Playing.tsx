@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { QUESTIONS } from '../questions'
 import { useStore } from '../store'
 import { WebsocketClient } from '../websocket-client'
+import { Deadline } from './Deadline'
 import { Other, You } from './Players'
 
 export const Playing = ({
@@ -9,7 +10,10 @@ export const Playing = ({
 }: {
   websocket: WebsocketClient | null
 }) => {
-  const { you, others, questionIndex } = useStore()
+  const { you, others, benigoiHolder, questionIndex, deadline, answers } =
+    useStore()
+
+  const finalized = Object.keys(answers).length > 1
 
   const onNameUpdate = useCallback(
     (name: string) => {
@@ -18,23 +22,43 @@ export const Playing = ({
     [websocket]
   )
 
-  const [copied, setCopied] = useState<boolean>(false)
+  const [yourAnswer, setYourAnswer] = useState(() =>
+    you ? answers[you.joinOrder] : undefined
+  )
   useEffect(() => {
-    if (copied) {
-      const timeout = setTimeout(() => {
-        setCopied(false)
-      }, 750)
-
-      return () => {
-        clearTimeout(timeout)
-      }
+    if (you) {
+      setYourAnswer(answers[you.joinOrder])
     }
-  }, [copied])
+  }, [you, answers])
 
   const [answer, setAnswer] = useState<string>('')
 
+  const [disabledBecauseOfTime, setDisabledBecauseOfTime] = useState(() =>
+    deadline === undefined ? true : Date.now() >= deadline ? true : false
+  )
+  useEffect(() => {
+    if (deadline !== undefined) {
+      const now = Date.now()
+      if (now >= deadline) {
+        setDisabledBecauseOfTime(true)
+      } else {
+        const timeout = setTimeout(() => {
+          setDisabledBecauseOfTime(true)
+        }, deadline - now)
+
+        return () => {
+          clearTimeout(timeout)
+        }
+      }
+    }
+  }, [deadline])
+
   return (
     <>
+      {deadline !== undefined && (
+        <Deadline deadline={deadline} finalized={finalized} />
+      )}
+
       <div
         style={{
           display: 'flex',
@@ -44,31 +68,66 @@ export const Playing = ({
           marginBottom: '2rem',
         }}
       >
-        <You player={you} onNameUpdate={onNameUpdate} />
+        <You
+          player={you}
+          benigoiHolder={benigoiHolder}
+          onNameUpdate={onNameUpdate}
+        />
         {Object.values(others)
           .sort((a, b) => (a.joinOrder < b.joinOrder ? -1 : 1))
           .map((other) => (
-            <Other key={other.joinOrder} player={other} />
+            <Other
+              key={other.joinOrder}
+              player={other}
+              benigoiHolder={benigoiHolder}
+            />
           ))}
       </div>
 
-      {questionIndex !== undefined ? (
-        <>
+      <>
+        {questionIndex !== undefined ? (
           <div>{QUESTIONS[questionIndex]}</div>
+        ) : null}
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            websocket?.submitAnswer(answer)
+          }}
+        >
+          <label>Most people would say...</label>
           <input
-            style={{
-              borderWidth: 0,
-              borderBottomWidth: 'thin',
-            }}
-            spellCheck={false}
-            value={answer}
-            onChange={(e) => {
-              setAnswer(e.target.value)
-              // report answer to server
-            }}
+            type="text"
+            value={
+              disabledBecauseOfTime
+                ? yourAnswer ?? ''
+                : yourAnswer === undefined
+                ? answer
+                : yourAnswer
+            }
+            onChange={(e) => setAnswer(e.target.value)}
+            disabled={disabledBecauseOfTime || yourAnswer !== undefined}
           />
-        </>
-      ) : null}
+          {disabledBecauseOfTime ? null : (
+            <input
+              type="submit"
+              value="submit"
+              disabled={yourAnswer !== undefined}
+            />
+          )}
+        </form>
+
+        {Object.keys(answers).map((joinOrder) => {
+          const answer = answers[Number(joinOrder)]
+          return <p key={joinOrder}>{answer}</p>
+        })}
+
+        {disabledBecauseOfTime || finalized ? (
+          <button onClick={() => websocket?.advanceGameState()}>
+            next question
+          </button>
+        ) : null}
+      </>
     </>
   )
 }
