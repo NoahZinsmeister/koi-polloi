@@ -10,8 +10,12 @@ export default {
   async fetch(request: Request, env: Env) {
     try {
       const url = new URL(request.url)
+      const origin = new URL(request.headers.get('origin')!)
       if (
-        !(url.hostname === 'www.koipolloi.fish' || url.hostname === 'localhost')
+        !(
+          origin.hostname === 'www.koipolloi.fish' ||
+          origin.hostname === 'localhost'
+        )
       ) {
         return new Response(null, { status: 401 })
       }
