@@ -5,7 +5,7 @@ const QUESTION_ORDER = 'QUESTION_ORDER'
 const GAME_STATE = 'GAME_STATE'
 
 const SECONDS_PER_ROUND = 60
-export const NUMBER_OF_QUESTIONS = 3
+export const NUMBER_OF_QUESTIONS = 87
 
 export interface PlayerState {
   name?: string
