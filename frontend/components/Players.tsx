@@ -75,7 +75,9 @@ export const You = ({
       />
       <Score
         koi={player?.koi ?? 0}
-        benigoi={player?.joinOrder === benigoiHolder}
+        benigoi={
+          benigoiHolder !== undefined && player?.joinOrder === benigoiHolder
+        }
       />
     </Card>
   )
@@ -97,7 +99,9 @@ export const Other = ({
       </p>
       <Score
         koi={player?.koi ?? 0}
-        benigoi={player?.joinOrder === benigoiHolder}
+        benigoi={
+          benigoiHolder !== undefined && player?.joinOrder === benigoiHolder
+        }
       />
     </Card>
   )
