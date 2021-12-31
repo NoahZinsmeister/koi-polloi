@@ -174,11 +174,34 @@ export class KoiPolloi {
     const answers: { [joinOrder: number]: string } = {}
     const koi: { [joinOrder: number]: number } = {}
 
+    const answersByPrevalence = Object.values(this.gameState.answers).reduce<{
+      [answer: string]: number
+    }>((accumulator, answer) => {
+      accumulator[answer] = (accumulator[answer] ?? 0) + 1
+      return accumulator
+    }, {})
+    const pluralityThreshold = Math.max(...Object.values(answersByPrevalence))
+    const possibleAnswers = Object.keys(answersByPrevalence).filter(
+      answer => answersByPrevalence[answer] === pluralityThreshold
+    )
+    const winningAnswer =
+      possibleAnswers.length === 1 ? possibleAnswers[0] : undefined
+    let losingAnswer: string | undefined
+
+    if (Object.keys(answersByPrevalence).length === 2) {
+      const otherAnswer = Object.keys(answersByPrevalence).filter(
+        answer => answer !== winningAnswer
+      )[0]
+      if (answersByPrevalence[otherAnswer] === 1) {
+        losingAnswer = otherAnswer
+      }
+    }
+
     Object.keys(this.gameState.answers).forEach(userId => {
       const playerState = this.getPlayerState(userId)
       answers[playerState!.joinOrder] = this.gameState.answers[userId]
 
-      const earnedKoi = true
+      const earnedKoi = this.gameState.answers[userId] === winningAnswer
       if (earnedKoi) {
         const newKoi = playerState!.koi + 1
         this.setPlayerState(userId, {
@@ -187,18 +210,25 @@ export class KoiPolloi {
         })
         koi[playerState!.joinOrder] = newKoi
       }
-    })
 
-    this.benigoiHolder = undefined
-    if (this.benigoiHolder !== undefined) {
-      this.state.storage.put(BENIGOI_HOLDER, this.benigoiHolder)
-    }
+      if (this.gameState.answers[userId] === losingAnswer) {
+        this.benigoiHolder = userId
+        this.state.storage.put(BENIGOI_HOLDER, this.benigoiHolder)
+      }
+    })
 
     this.setGameState({ ...this.gameState, finalized: true })
 
     this.sendMessageToEveryClient({
       type: MessageToEveryClientType.ROUND_FINALIZED,
-      payload: { answers, koi, benigoiHolder: undefined }
+      payload: {
+        answers,
+        koi,
+        benigoiHolder:
+          this.benigoiHolder === undefined
+            ? undefined
+            : this.getPlayerState(this.benigoiHolder)!.joinOrder
+      }
     })
   }
 
@@ -282,7 +312,6 @@ export class KoiPolloi {
                 answers: {},
                 finalized: false
               })
-              console.log(this.gameState)
 
               this.sendMessageToEveryClient({
                 type: MessageToEveryClientType.GAME_STATE_ADVANCED,

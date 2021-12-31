@@ -134,9 +134,14 @@ export const Joining = ({
       >
         <button
           onClick={() => websocket?.advanceGameState()}
-          disabled={Object.keys(others).length < 1}
+          disabled={Object.keys(others).length < 3}
         >
           start game
+          {Object.keys(others).length < 3
+            ? ` (${4 - 1 - Object.keys(others).length} more player${
+                Object.keys(others).length === 2 ? '' : 's'
+              } needed)`
+            : ''}
         </button>
       </div>
     </>

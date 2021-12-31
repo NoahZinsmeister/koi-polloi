@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import React, { Fragment, useCallback, useEffect, useState } from 'react'
 import { QUESTIONS } from '../questions'
 import { useStore } from '../store'
 import { WebsocketClient } from '../websocket-client'
@@ -105,7 +105,7 @@ export const Playing = ({
                 ? answer
                 : yourAnswer
             }
-            onChange={(e) => setAnswer(e.target.value)}
+            onChange={(e) => setAnswer(e.target.value.toLowerCase())}
             disabled={disabledBecauseOfTime || yourAnswer !== undefined}
           />
           {disabledBecauseOfTime ? null : (
@@ -119,7 +119,17 @@ export const Playing = ({
 
         {Object.keys(answers).map((joinOrder) => {
           const answer = answers[Number(joinOrder)]
-          return <p key={joinOrder}>{answer}</p>
+          const player =
+            you!.joinOrder === Number(joinOrder)
+              ? you
+              : others[Number(joinOrder)]!
+          const name = player!.name ?? `Player ${joinOrder}`
+          return (
+            <Fragment key={joinOrder}>
+              <p>{name} said...</p>
+              <p>{answer}</p>
+            </Fragment>
+          )
         })}
 
         {disabledBecauseOfTime || finalized ? (
