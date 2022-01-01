@@ -15,7 +15,7 @@ const Home: NextPage = () => {
         <Image src="/lily_with_flower.png" alt="koi" width="140" height="140" layout="intrinsic"/>
         </div>
 
-        <h1 style={{ fontSize: '6rem', WebkitTextStroke: '2px black' }}>koi <Image src="/koi.png" alt="koi" width="140" height="140"/> <br></br> polloi </h1>
+        <h1 style={{ fontSize: '6rem', WebkitTextStroke: '2px black', lineHeight: '6rem', marginTop: '-2rem'}}>koi <Image src="/koi.png" alt="koi" width="140" height="140"/> <br></br> polloi </h1>
 
       </div>
 
