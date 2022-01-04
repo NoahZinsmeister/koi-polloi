@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import { WebsocketClient } from '../websocket-client'
 import { Other, You } from './Players'
@@ -6,18 +6,13 @@ import { Other, You } from './Players'
 export const Joining = ({
   gameId,
   websocket,
+  onNameUpdate,
 }: {
   gameId: string | string[] | undefined
   websocket: WebsocketClient | null
+  onNameUpdate: (name: string) => void
 }) => {
   const { you, others, benigoiHolder } = useStore()
-
-  const onNameUpdate = useCallback(
-    (name: string) => {
-      websocket?.updateName(name)
-    },
-    [websocket]
-  )
 
   const [copied, setCopied] = useState<boolean>(false)
   useEffect(() => {

@@ -1,30 +1,45 @@
-import React, { Fragment, useCallback, useEffect, useState } from 'react'
+import React, { Fragment, useEffect, useState } from 'react'
+import { PlayerState } from '../../workers/src/koi-polloi'
 import { QUESTIONS } from '../questions'
 import { useStore } from '../store'
 import { WebsocketClient } from '../websocket-client'
 import { Deadline } from './Deadline'
 import { Other, You } from './Players'
 
+function determineWinner(
+  you: PlayerState,
+  others: PlayerState[],
+  benigoiHolder: number | undefined
+): number | undefined {
+  const players = [you, ...others]
+    .filter((a) => a.joinOrder !== benigoiHolder)
+    .sort((a, b) => (a.koi > b.koi ? -1 : 1))
+
+  if (players[0].koi >= 8 && players[1].koi < players[0].koi) {
+    return players[0].joinOrder
+  }
+}
+
 export const Playing = ({
   websocket,
+  setWinner,
+  onNameUpdate,
 }: {
   websocket: WebsocketClient | null
+  setWinner: (winer: number) => void
+  onNameUpdate: (name: string) => void
 }) => {
   const { you, others, benigoiHolder, questionIndex, deadline, answers } =
     useStore()
 
-  const finalized = Object.keys(answers).length > 1
+  const winner = determineWinner(you!, Object.values(others), benigoiHolder)
 
-  const onNameUpdate = useCallback(
-    (name: string) => {
-      websocket?.updateName(name)
-    },
-    [websocket]
-  )
+  const finalized = Object.keys(answers).length > 1
 
   const [yourAnswer, setYourAnswer] = useState(() =>
     you ? answers[you.joinOrder] : undefined
   )
+
   useEffect(() => {
     if (you) {
       setYourAnswer(answers[you.joinOrder])
@@ -33,15 +48,18 @@ export const Playing = ({
 
   const [answer, setAnswer] = useState<string>('')
 
-  const [disabledBecauseOfTime, setDisabledBecauseOfTime] = useState(() =>
-    deadline === undefined ? true : Date.now() >= deadline ? true : false
-  )
+  const [disabledBecauseOfTime, setDisabledBecauseOfTime] = useState(true)
+
   useEffect(() => {
-    if (deadline !== undefined) {
+    if (deadline === undefined) {
+      setDisabledBecauseOfTime(true)
+    } else {
       const now = Date.now()
       if (now >= deadline) {
         setDisabledBecauseOfTime(true)
       } else {
+        setDisabledBecauseOfTime(false)
+
         const timeout = setTimeout(() => {
           setDisabledBecauseOfTime(true)
         }, deadline - now)
@@ -93,6 +111,7 @@ export const Playing = ({
           onSubmit={(e) => {
             e.preventDefault()
             websocket?.submitAnswer(answer)
+            setAnswer('')
           }}
         >
           <label>Most people would say...</label>
@@ -112,30 +131,46 @@ export const Playing = ({
             <input
               type="submit"
               value="submit"
-              disabled={yourAnswer !== undefined}
+              disabled={yourAnswer !== undefined || answer === ''}
             />
           )}
         </form>
 
-        {Object.keys(answers).map((joinOrder) => {
-          const answer = answers[Number(joinOrder)]
-          const player =
-            you!.joinOrder === Number(joinOrder)
-              ? you
-              : others[Number(joinOrder)]!
-          const name = player!.name ?? `Player ${joinOrder}`
-          return (
-            <Fragment key={joinOrder}>
-              <p>{name} said...</p>
-              <p>{answer}</p>
-            </Fragment>
-          )
-        })}
+        {Object.keys(answers)
+          .sort((a, b) => {
+            if (Number(a) === you!.joinOrder) {
+              return -1
+            } else if (Number(b) === you!.joinOrder) {
+              return 1
+            } else {
+              return a < b ? -1 : 1
+            }
+          })
+          .map((joinOrder) => {
+            const answer = answers[Number(joinOrder)]
+            const player =
+              you!.joinOrder === Number(joinOrder)
+                ? you
+                : others[Number(joinOrder)]!
+            const name = player!.name ?? `Player ${joinOrder}`
+            return (
+              <Fragment key={joinOrder}>
+                <p>{name} said...</p>
+                <p>{answer}</p>
+              </Fragment>
+            )
+          })}
 
         {disabledBecauseOfTime || finalized ? (
-          <button onClick={() => websocket?.advanceGameState()}>
-            next question
-          </button>
+          winner !== undefined ? (
+            <button onClick={() => setWinner(winner)}>
+              we have a winner...
+            </button>
+          ) : (
+            <button onClick={() => websocket?.advanceGameState()}>
+              next question
+            </button>
+          )
         ) : null}
       </>
     </>
